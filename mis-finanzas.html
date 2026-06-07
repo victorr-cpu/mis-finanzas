@@ -257,6 +257,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
             <input type="number" id="cfg-tdc" placeholder="$0.00" style="width:100%;padding:13px 16px;border-radius:14px;border:1.5px solid #E0E0E0;font-size:17px;font-weight:600;color:#1C2B36;font-family:inherit;background:#F4F6F8;outline:none" inputmode="decimal" onchange="saveTDC(this.value)">
           </div>
         </div>
+        <div class="card" style="margin-top:12px">
+          <div class="sec-title">Exportar gastos variables</div>
+          <div style="padding:14px 16px">
+            <div id="export-info" style="font-size:13px;color:#546E7A;margin-bottom:12px;line-height:1.6">Solo se exportan los gastos nuevos que aún no han sido descargados.</div>
+            <button onclick="exportarExcel()" style="width:100%;padding:14px;border-radius:14px;background:#2C3E50;color:#fff;border:none;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px">⬇️ Descargar gastos nuevos</button>
+            <div id="export-status" style="font-size:12px;color:#546E7A;text-align:center;margin-top:6px"></div>
+          </div>
+        </div>
         <button class="cerrar-btn" onclick="cerrarSesion()">Cerrar sesión / Cambiar PIN</button>
       </div>
     </div>
@@ -536,6 +544,54 @@ function initFecha(){
   const d=new Date();
   document.getElementById('s-fecha').textContent=d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'});
   document.getElementById('h-mes').textContent=d.toLocaleDateString('es-MX',{month:'long',year:'numeric'});
+}
+
+// ── EXPORTAR EXCEL INCREMENTAL ─────────────────────────────────────────────
+function exportarExcel(){
+  const exportados = JSON.parse(localStorage.getItem('fin_exportados_'+userKey)||'[]');
+  const nuevos = gastos.filter(g => !exportados.includes(g.id));
+
+  if(nuevos.length === 0){
+    document.getElementById('export-status').textContent = 'No hay gastos nuevos para exportar.';
+    return;
+  }
+
+  // Construir filas para Excel
+  const filas = [
+    ['Fecha','Categoría','Descripción','Monto ($)','Forma de Pago','Estatus']
+  ];
+  nuevos.sort((a,b)=>a.ts-b.ts).forEach(g => {
+    filas.push([
+      g.fecha,
+      g.cat,
+      g.desc||'',
+      g.monto,
+      g.forma,
+      g.estatus
+    ]);
+  });
+
+  // Crear workbook
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+
+  // Anchos de columna
+  ws['!cols'] = [{wch:12},{wch:28},{wch:30},{wch:14},{wch:14},{wch:12}];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Gastos Variables');
+
+  // Nombre del archivo con fecha
+  const hoyStr = new Date().toLocaleDateString('es-MX',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
+  const filename = 'GastosVariables_'+hoyStr+'.xlsx';
+
+  XLSX.writeFile(wb, filename);
+
+  // Marcar como exportados
+  const nuevosIds = nuevos.map(g=>g.id);
+  const totalExportados = [...exportados, ...nuevosIds];
+  localStorage.setItem('fin_exportados_'+userKey, JSON.stringify(totalExportados));
+
+  document.getElementById('export-status').textContent = '✅ '+nuevos.length+' gastos exportados correctamente.';
 }
 
 // Inicio
