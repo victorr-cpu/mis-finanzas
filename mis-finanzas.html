@@ -513,20 +513,40 @@ function leerExcel(input){
   reader.onload=function(e){
     try{
       const wb=XLSX.read(e.target.result,{type:'array'});
-      const dArr=XLSX.utils.sheet_to_json(wb.Sheets['Datos'],{header:1,defval:'',raw:false});
+      const dArr=XLSX.utils.sheet_to_json(wb.Sheets['Datos'],{header:1,defval:'',raw:true});
       const ingresos=[]; let totalIng=0;
       for(let i=3;i<12;i++){
-        const nom=dArr[i]&&dArr[i][1], mto=parseFloat(dArr[i]&&dArr[i][2])||0;
-        if(nom&&typeof nom==='string'&&!nom.startsWith('TOTAL')&&mto>0){ingresos.push({nombre:nom,monto:mto});totalIng+=mto;}
+        const nom=dArr[i]&&dArr[i][1];
+        const rawMto=dArr[i]&&dArr[i][2];
+        const mto=typeof rawMto==='number'?rawMto:parseFloat(String(rawMto).replace(/[^0-9.-]/g,''))||0;
+        if(nom&&typeof nom==='string'&&!nom.startsWith('TOTAL')&&!nom.startsWith('—')&&mto>0){
+          ingresos.push({nombre:nom,monto:mto});totalIng+=mto;
+        }
       }
-      const gvArr=XLSX.utils.sheet_to_json(wb.Sheets['Gastos Variables'],{header:1,defval:'',raw:false});
+      const gvArr=XLSX.utils.sheet_to_json(wb.Sheets['Gastos Variables'],{header:1,defval:'',raw:true});
       const techos={};
-      for(let r=4;r<13;r++) techos[CATS[r-4]]=parseFloat(gvArr[r]&&gvArr[r][9])||0;
-      const cmArr=XLSX.utils.sheet_to_json(wb.Sheets['Control Mensual'],{header:1,defval:'',raw:false});
+      for(let r=4;r<13;r++){
+        const rawT=gvArr[r]&&gvArr[r][9];
+        techos[CATS[r-4]]=typeof rawT==='number'?rawT:parseFloat(String(rawT).replace(/[^0-9.-]/g,''))||0;
+      }
+      const cmArr=XLSX.utils.sheet_to_json(wb.Sheets['Control Mensual'],{header:1,defval:'',raw:true});
       const recurrentes=[];
       for(let r=6;r<24;r++){
-        const nom=cmArr[r]&&cmArr[r][0], mto=parseFloat(cmArr[r]&&cmArr[r][1])||0, est=cmArr[r]&&cmArr[r][4];
-        if(nom&&typeof nom==='string'&&mto>0&&est) recurrentes.push({nombre:nom,monto:mto,estatus:est});
+        const nom=cmArr[r]&&cmArr[r][0];
+        const rawMto=cmArr[r]&&cmArr[r][1];
+        const mto=typeof rawMto==='number'?rawMto:parseFloat(String(rawMto).replace(/[^0-9.-]/g,''))||0;
+        const est=cmArr[r]&&cmArr[r][4];
+        if(nom&&typeof nom==='string'&&nom.trim()&&!nom.includes('Gasto')&&mto>0&&est&&typeof est==='string'&&est.trim())
+          recurrentes.push({nombre:nom,monto:mto,estatus:est.trim()});
+      }
+      // Leer también Otros Gastos filas 28-43
+      for(let r=28;r<44;r++){
+        const nom=cmArr[r]&&cmArr[r][0];
+        const rawMto=cmArr[r]&&cmArr[r][1];
+        const mto=typeof rawMto==='number'?rawMto:parseFloat(String(rawMto).replace(/[^0-9.-]/g,''))||0;
+        const est=cmArr[r]&&cmArr[r][4];
+        if(nom&&typeof nom==='string'&&nom.trim()&&!nom.includes('Gasto')&&mto>0&&est&&typeof est==='string'&&est.trim())
+          recurrentes.push({nombre:nom,monto:mto,estatus:est.trim()});
       }
       const newCfg={...cfg,ingresos,ingreso:totalIng,techos,recurrentes};
       if(db) db.ref('finanzas/'+userKey+'/config').set(newCfg);
