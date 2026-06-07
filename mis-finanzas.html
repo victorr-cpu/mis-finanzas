@@ -370,8 +370,17 @@ const mes=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth
 const fechaCorta=iso=>{const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('es-MX',{day:'numeric',month:'short'})};
 
 function initFB(){
-  firebase.initializeApp({databaseURL:FB_URL,projectId:'mis-pendientes-bedd8',appId:'finanzas'});
-  db=firebase.database();
+  try{
+    firebase.initializeApp({databaseURL:FB_URL,projectId:'mis-pendientes-bedd8',appId:'mis-finanzas-app'});
+    db=firebase.database();
+  }catch(e){
+    // Si ya fue inicializado, usar la instancia existente
+    try{
+      db=firebase.app().database();
+    }catch(e2){
+      console.error('Firebase error:',e2);
+    }
+  }
 }
 
 function entrar(){
@@ -647,7 +656,15 @@ function initFecha(){
 
 initFB();
 const savedPin=localStorage.getItem('fin_pin');
-if(savedPin){userKey=savedPin;iniciarApp();}
+if(savedPin){
+  userKey=savedPin;
+  document.getElementById('pin-screen').style.display='none';
+  document.getElementById('app-main').style.display='flex';
+  iniciarApp();
+} else {
+  document.getElementById('pin-screen').style.display='flex';
+  document.getElementById('app-main').style.display='none';
+}
 document.getElementById('pin-input').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
 </script>
 </body>
