@@ -212,7 +212,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="card-header"><div class="card-title">Monto</div></div>
         <div class="input-wrap">
           <input class="monto-big" type="number" id="monto-in" placeholder="0.00" min="0" step="0.01" inputmode="decimal">
-          <span class="input-label" style="margin-top:12px">Forma de pago</span>
+          <span class="input-label" style="margin-top:12px">Descripción (opcional)</span>
+          <input type="text" id="desc-in" placeholder="Ej: Walmart, Uber Eats, Mercado..." style="width:100%;padding:13px 16px;border-radius:14px;border:1.5px solid var(--border);background:var(--bg);font-size:15px;color:var(--txt);font-family:inherit;outline:none;margin-bottom:10px;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'">
+          <span class="input-label">Forma de pago</span>
           <div class="forma-grid">
             <button class="forma-btn sel" onclick="selForma(this,'Pagado')">Efectivo</button>
             <button class="forma-btn" onclick="selForma(this,'TDC')">TDC</button>
@@ -458,10 +460,12 @@ function agregar(){
   if(!monto||monto<=0){alert('Ingresa un monto válido');return;}
   const formaBtn=document.querySelector('.forma-btn.sel');
   const forma=formaBtn?formaBtn.textContent.trim():'Efectivo';
-  const g={fecha:hoy(),cat:catSel,monto,forma,estatus:formaSel,ts:Date.now()};
+  const desc=document.getElementById('desc-in').value.trim();
+  const g={fecha:hoy(),cat:catSel,monto,forma,estatus:formaSel,desc,ts:Date.now()};
   setSyncStatus('⟳ Guardando...');
   db.ref('finanzas/'+userKey+'/gastos').push(g);
   document.getElementById('monto-in').value='';
+  document.getElementById('desc-in').value='';
   document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('sel'));
   catSel=null;
 }
@@ -480,7 +484,7 @@ function renderGasto(){
       <div class="gasto-ico" style="background:${CAT_BG[g.cat]||'#F5F5F5'}">${g.cat.split(' ')[0]}</div>
       <div style="flex:1">
         <div class="gasto-cat">${g.cat.replace(/^.\s/,'')}</div>
-        <div class="gasto-sub">${fechaCorta(g.fecha)} · ${g.forma} ${g.estatus==='TDC'?'<span class="tdc-pill">TDC</span>':''}</div>
+        <div class="gasto-sub">${g.desc?'<strong>'+g.desc+'</strong> · ':''}${fechaCorta(g.fecha)} · ${g.forma} ${g.estatus==='TDC'?'<span class="tdc-pill">TDC</span>':''}</div>
       </div>
       <div style="text-align:right">
         <div class="gasto-monto">${fmt(g.monto)}</div>
