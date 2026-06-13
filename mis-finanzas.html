@@ -104,6 +104,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sec-title{font-size:12px;font-weight:600;color:#546E7A;padding:14px 16px 6px;text-transform:uppercase;letter-spacing:.5px}
 .sync-info{display:flex;align-items:center;gap:8px;background:#E3F2FD;border-radius:12px;padding:11px 14px;font-size:13px;color:#1565C0;margin-bottom:12px;font-weight:500}
 .cerrar-btn{width:100%;margin-top:16px;padding:14px;border-radius:14px;border:1.5px solid #E0E0E0;background:none;font-size:14px;color:#546E7A;cursor:pointer;font-family:inherit}
+.saldo-base-pill{background:#E8F5E9;border-radius:12px;padding:10px 16px;margin-bottom:12px;font-size:13px;color:#2E7D32;font-weight:500;display:flex;justify-content:space-between;align-items:center}
 /* PIN */
 .pin-overlay{position:fixed;inset:0;background:#1C2B36;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;padding:40px 32px}
 .pin-logo{font-size:56px;margin-bottom:16px}
@@ -187,8 +188,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <!-- DASHBOARD -->
     <div class="screen" id="sc-dash">
       <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-label">Ingreso mensual</div><div class="kpi-val azul" id="kpi-ing">$0</div></div>
-        <div class="kpi"><div class="kpi-label">Total pagado</div><div class="kpi-val slate" id="kpi-pag">$0</div></div>
+        <div class="kpi"><div class="kpi-label">Saldo base (Excel)</div><div class="kpi-val azul" id="kpi-ing">$0</div></div>
+        <div class="kpi"><div class="kpi-label">Gastado en app</div><div class="kpi-val slate" id="kpi-pag">$0</div></div>
         <div class="kpi"><div class="kpi-label">Saldo real</div><div class="kpi-val verde" id="kpi-sal">$0</div></div>
         <div class="kpi"><div class="kpi-label">TDC acumulado</div><div class="kpi-val teal" id="kpi-tdc">$0</div></div>
       </div>
@@ -199,9 +200,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="card">
         <div class="card-header">Resumen del mes</div>
         <div style="padding:0 16px 14px">
-          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F0"><span style="font-size:14px;color:#546E7A">Fijos pagados</span><span style="font-size:15px;font-weight:600;color:#2E7D32" id="d-fpag">$0</span></div>
-          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F0"><span style="font-size:14px;color:#546E7A">Fijos pendientes</span><span style="font-size:15px;font-weight:600;color:#C62828" id="d-fpend">$0</span></div>
-          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F0"><span style="font-size:14px;color:#546E7A">Variables del mes</span><span style="font-size:15px;font-weight:600;color:#1C2B36" id="d-var">$0</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F0"><span style="font-size:14px;color:#546E7A">Saldo base del Excel</span><span style="font-size:15px;font-weight:600;color:#1565C0" id="d-fpag">$0</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F0"><span style="font-size:14px;color:#546E7A">Gastado en app (no en Excel)</span><span style="font-size:15px;font-weight:600;color:#C62828" id="d-fpend">$0</span></div>
           <div style="display:flex;justify-content:space-between;padding:10px 0"><span style="font-size:15px;font-weight:600;color:#1C2B36">Saldo disponible</span><span style="font-size:17px;font-weight:700;color:#2E7D32" id="d-sal">$0</span></div>
         </div>
       </div>
@@ -238,12 +238,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="cfg-upload" onclick="document.getElementById('f-excel').click()">
         <span class="cfg-icon">📊</span>
         <div class="cfg-title">Cargar Excel</div>
-        <div class="cfg-sub">Reporte_Ingresos_Egresos_FINAL.xlsx</div>
+        <div class="cfg-sub">Reporte_Ingresos_Egresos_APP.xlsx</div>
       </div>
       <input type="file" id="f-excel" style="display:none" accept=".xlsx" onchange="leerExcel(this)">
       <div id="cfg-status"></div>
       <div id="cfg-data" style="display:none">
         <div class="card">
+          <div class="sec-title">Saldo base del Excel</div>
+          <div id="cfg-saldo-base"></div>
+        </div>
+        <div class="card" style="margin-top:12px">
           <div class="sec-title">Ingresos</div>
           <div id="cfg-ingresos"></div>
         </div>
@@ -356,12 +360,15 @@ function cerrarSesion(){
   if(confirm('¿Cerrar sesión?')){ localStorage.removeItem('fin_pin'); location.reload(); }
 }
 
+// ── LÓGICA CLAVE: saldo = saldoBase(Excel) - gastos registrados en app ──────
 function actualizarHeader(){
-  const m=mes(), del=gastos.filter(g=>g.fecha&&g.fecha.startsWith(m));
-  const tV=del.reduce((a,g)=>a+(g.monto||0),0);
-  const rec=cfg.recurrentes||[];
-  const fP=rec.filter(r=>r.estatus==='Pagado'||r.estatus==='TDC').reduce((a,r)=>a+(r.monto||0),0);
-  document.getElementById('h-saldo').textContent = fmt((cfg.ingreso||0)-fP-tV);
+  const m = mes();
+  const gastosDelMes = gastos.filter(g => g.fecha && g.fecha.startsWith(m));
+  const totalGastadoApp = gastosDelMes.reduce((a,g) => a + (g.monto||0), 0);
+  // saldoBase viene del Excel (celda G7 del Dashboard = SALDO DISPONIBLE Normal)
+  const saldoBase = cfg.saldoBase || 0;
+  const saldoReal = saldoBase - totalGastadoApp;
+  document.getElementById('h-saldo').textContent = fmt(saldoReal);
 }
 
 function goTab(id,title){
@@ -426,25 +433,22 @@ function renderGasto(){
 
 function renderDash(){
   const m=mes(), del=gastos.filter(g=>g.fecha&&g.fecha.startsWith(m));
-  const ing=cfg.ingreso||0, tec=cfg.techos||{}, rec=cfg.recurrentes||[];
-  const fP=rec.filter(r=>r.estatus==='Pagado'||r.estatus==='TDC').reduce((a,r)=>a+(r.monto||0),0);
-  const fPend=rec.filter(r=>r.estatus==='Pendiente').reduce((a,r)=>a+(r.monto||0),0);
+  const saldoBase=cfg.saldoBase||0, tec=cfg.techos||{}, rec=cfg.recurrentes||[];
   const tV=del.reduce((a,g)=>a+(g.monto||0),0);
-  const tdcF=rec.filter(r=>r.estatus==='TDC').reduce((a,r)=>a+(r.monto||0),0);
+  const saldoReal=saldoBase-tV;
   const tdcV=del.filter(g=>g.estatus==='TDC').reduce((a,g)=>a+(g.monto||0),0);
-  const tdcT=tdcF+tdcV, tdcP=cfg.tdcPago||0, sal=ing-fP-tV;
-  document.getElementById('kpi-ing').textContent=fmt(ing);
-  document.getElementById('kpi-pag').textContent=fmt(fP+tV);
-  document.getElementById('kpi-sal').textContent=fmt(sal);
-  document.getElementById('kpi-tdc').textContent=fmt(tdcT);
-  document.getElementById('d-fpag').textContent=fmt(fP);
-  document.getElementById('d-fpend').textContent=fmt(fPend);
-  document.getElementById('d-var').textContent=fmt(tV);
-  document.getElementById('d-sal').textContent=fmt(sal);
-  document.getElementById('d-tdc1').textContent=fmt(tdcT);
+  const tdcP=cfg.tdcPago||0;
+  document.getElementById('kpi-ing').textContent=fmt(saldoBase);
+  document.getElementById('kpi-pag').textContent=fmt(tV);
+  document.getElementById('kpi-sal').textContent=fmt(saldoReal);
+  document.getElementById('kpi-tdc').textContent=fmt(tdcV);
+  document.getElementById('d-fpag').textContent=fmt(saldoBase);
+  document.getElementById('d-fpend').textContent=fmt(tV);
+  document.getElementById('d-sal').textContent=fmt(saldoReal);
+  document.getElementById('d-tdc1').textContent=fmt(tdcV);
   document.getElementById('d-tdc2').textContent=fmt(tdcP);
-  document.getElementById('d-tdc3').textContent=fmt(tdcT-tdcP);
-  document.getElementById('d-tdc-pct').textContent=tdcT>0?(((tdcT-tdcP)/tdcT*100).toFixed(0)+'% pendiente'):'—';
+  document.getElementById('d-tdc3').textContent=fmt(tdcV-tdcP);
+  document.getElementById('d-tdc-pct').textContent=tdcV>0?(((tdcV-tdcP)/tdcV*100).toFixed(0)+'% pendiente'):'—';
   const totC={};
   del.forEach(g=>{totC[g.cat]=(totC[g.cat]||0)+(g.monto||0)});
   document.getElementById('d-bars').innerHTML = CATS.map(cat=>{
@@ -482,12 +486,11 @@ function renderCtrl(){
     const sem=t>0?(r/t>=1?'🔴':r/t>=0.9?'🟡':'🟢'):'—';
     return `<div class="ctrl-fijo"><span class="ctrl-nom" style="font-size:13px">${cat}</span><div style="text-align:right"><div class="ctrl-monto">${fmt(r)}</div><span style="font-size:11px;color:#546E7A">${sem} de ${fmt(t)}</span></div></div>`;
   }).filter(Boolean).join('') || '<div class="empty"><span class="ei">🛒</span>Sin gastos variables</div>';
-  const tdcF=rec.filter(r=>r.estatus==='TDC').reduce((a,r)=>a+(r.monto||0),0);
   const tdcV=del.filter(g=>g.estatus==='TDC').reduce((a,g)=>a+(g.monto||0),0);
-  const tdcT=tdcF+tdcV, diff=tdcT-tdcP;
-  document.getElementById('c-tdc1').textContent=fmt(tdcT);
+  const diff=tdcV-tdcP;
+  document.getElementById('c-tdc1').textContent=fmt(tdcV);
   document.getElementById('c-tdc3').textContent=fmt(diff);
-  document.getElementById('c-tdc-pct').textContent=tdcT>0?((diff/tdcT*100).toFixed(0)+'% pendiente'):'—';
+  document.getElementById('c-tdc-pct').textContent=tdcV>0?((diff/tdcV*100).toFixed(0)+'% pendiente'):'—';
   const tp=document.getElementById('tdc-pago');
   if(tp&&!tp.matches(':focus')) tp.value=tdcP||'';
 }
@@ -498,21 +501,40 @@ function saveTDC(v){
 }
 
 function renderCfg(){
-  const ing=cfg.ingresos||[], tec=cfg.techos||{};
+  const ing=cfg.ingresos||[], tec=cfg.techos||{}, saldoBase=cfg.saldoBase||0;
+  // Mostrar saldo base del Excel
+  document.getElementById('cfg-saldo-base').innerHTML=`
+    <div class="cfg-row">
+      <span class="cfg-lbl">SALDO DISPONIBLE (Normal)</span>
+      <span class="cfg-val" style="font-size:18px">${fmt(saldoBase)}</span>
+    </div>
+    <div class="cfg-row" style="font-size:12px">
+      <span style="color:#546E7A">Fuente: hoja Dashboard, celda G7</span>
+      <span style="color:#546E7A">Este es tu punto de partida</span>
+    </div>`;
   document.getElementById('cfg-ingresos').innerHTML=ing.length
     ?ing.map(i=>`<div class="cfg-row"><span class="cfg-lbl">${i.nombre}</span><span class="cfg-val">${fmt(i.monto)}</span></div>`).join('')
     :'<div class="cfg-row"><span style="color:#546E7A;font-size:14px">Carga el Excel para ver</span></div>';
   document.getElementById('cfg-techos').innerHTML=CATS.map(c=>`<div class="cfg-row"><span class="cfg-lbl" style="font-size:13px">${c}</span><span class="cfg-val">${fmt(tec[c]||0)}</span></div>`).join('');
-  document.getElementById('cfg-data').style.display=ing.length?'block':'none';
+  document.getElementById('cfg-data').style.display=saldoBase>0?'block':'none';
   const ci=document.getElementById('cfg-tdc'); if(ci) ci.value=cfg.tdcPago||'';
 }
 
+// ── LEER EXCEL: tomar saldoBase de Dashboard G7 ───────────────────────────
 function leerExcel(input){
   const file=input.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=function(e){
     try{
       const wb=XLSX.read(e.target.result,{type:'array'});
+
+      // 1. SALDO BASE: hoja Dashboard, celda G7 = SALDO DISPONIBLE (Normal)
+      const dashArr=XLSX.utils.sheet_to_json(wb.Sheets['Dashboard'],{header:1,defval:'',raw:true});
+      // fila índice 6 (row 7), columna índice 6 (G)
+      const rawSaldo = dashArr[6] && dashArr[6][6];
+      const saldoBase = typeof rawSaldo==='number' ? rawSaldo : parseFloat(String(rawSaldo).replace(/[^0-9.-]/g,''))||0;
+
+      // 2. INGRESOS: hoja Datos
       const dArr=XLSX.utils.sheet_to_json(wb.Sheets['Datos'],{header:1,defval:'',raw:true});
       const ingresos=[]; let totalIng=0;
       for(let i=3;i<12;i++){
@@ -523,12 +545,16 @@ function leerExcel(input){
           ingresos.push({nombre:nom,monto:mto});totalIng+=mto;
         }
       }
+
+      // 3. TECHOS: hoja Gastos Variables
       const gvArr=XLSX.utils.sheet_to_json(wb.Sheets['Gastos Variables'],{header:1,defval:'',raw:true});
       const techos={};
       for(let r=4;r<13;r++){
         const rawT=gvArr[r]&&gvArr[r][9];
         techos[CATS[r-4]]=typeof rawT==='number'?rawT:parseFloat(String(rawT).replace(/[^0-9.-]/g,''))||0;
       }
+
+      // 4. RECURRENTES: hoja Control Mensual
       const cmArr=XLSX.utils.sheet_to_json(wb.Sheets['Control Mensual'],{header:1,defval:'',raw:true});
       const recurrentes=[];
       for(let r=6;r<24;r++){
@@ -539,7 +565,6 @@ function leerExcel(input){
         if(nom&&typeof nom==='string'&&nom.trim()&&!nom.includes('Gasto')&&mto>0&&est&&typeof est==='string'&&est.trim())
           recurrentes.push({nombre:nom,monto:mto,estatus:est.trim()});
       }
-      // Leer también Otros Gastos filas 28-43
       for(let r=28;r<44;r++){
         const nom=cmArr[r]&&cmArr[r][0];
         const rawMto=cmArr[r]&&cmArr[r][1];
@@ -548,12 +573,15 @@ function leerExcel(input){
         if(nom&&typeof nom==='string'&&nom.trim()&&!nom.includes('Gasto')&&mto>0&&est&&typeof est==='string'&&est.trim())
           recurrentes.push({nombre:nom,monto:mto,estatus:est.trim()});
       }
-      const newCfg={...cfg,ingresos,ingreso:totalIng,techos,recurrentes};
+
+      // 5. GUARDAR EN FIREBASE
+      const newCfg={...cfg, saldoBase, ingresos, ingreso:totalIng, techos, recurrentes};
       if(db) db.ref('finanzas/'+userKey+'/config').set(newCfg);
-      document.getElementById('cfg-status').innerHTML=`<div class="cfg-ok">✅ ${file.name}<br>Ingreso ${fmt(totalIng)} · ${recurrentes.length} gastos fijos</div>`;
+
+      document.getElementById('cfg-status').innerHTML=`<div class="cfg-ok">✅ ${file.name}<br>Saldo base: ${fmt(saldoBase)} · ${recurrentes.length} gastos fijos</div>`;
       renderCfg(); actualizarHeader();
     }catch(err){
-      document.getElementById('cfg-status').innerHTML='<div style="color:#C62828;font-size:13px;padding:8px 0">Error al leer el Excel. Usa el archivo FINAL.</div>';
+      document.getElementById('cfg-status').innerHTML='<div style="color:#C62828;font-size:13px;padding:8px 0">Error al leer el Excel.</div>';
       console.error(err);
     }
   };
@@ -570,47 +598,22 @@ function initFecha(){
 function exportarExcel(){
   const exportados = JSON.parse(localStorage.getItem('fin_exportados_'+userKey)||'[]');
   const nuevos = gastos.filter(g => !exportados.includes(g.id));
-
   if(nuevos.length === 0){
     document.getElementById('export-status').textContent = 'No hay gastos nuevos para exportar.';
     return;
   }
-
-  // Construir filas para Excel
-  const filas = [
-    ['Fecha','Categoría','Descripción','Monto ($)','Forma de Pago','Estatus']
-  ];
+  const filas = [['Fecha','Categoría','Descripción','Monto ($)','Forma de Pago','Estatus']];
   nuevos.sort((a,b)=>a.ts-b.ts).forEach(g => {
-    filas.push([
-      g.fecha,
-      g.cat,
-      g.desc||'',
-      g.monto,
-      g.forma,
-      g.estatus
-    ]);
+    filas.push([g.fecha, g.cat, g.desc||'', g.monto, g.forma, g.estatus]);
   });
-
-  // Crear workbook
-  const wb = XLSX.utils.book_new();
+  const wb2 = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(filas);
-
-  // Anchos de columna
   ws['!cols'] = [{wch:12},{wch:28},{wch:30},{wch:14},{wch:14},{wch:12}];
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Gastos Variables');
-
-  // Nombre del archivo con fecha
+  XLSX.utils.book_append_sheet(wb2, ws, 'Gastos Variables');
   const hoyStr = new Date().toLocaleDateString('es-MX',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
-  const filename = 'GastosVariables_'+hoyStr+'.xlsx';
-
-  XLSX.writeFile(wb, filename);
-
-  // Marcar como exportados
+  XLSX.writeFile(wb2, 'GastosVariables_'+hoyStr+'.xlsx');
   const nuevosIds = nuevos.map(g=>g.id);
-  const totalExportados = [...exportados, ...nuevosIds];
-  localStorage.setItem('fin_exportados_'+userKey, JSON.stringify(totalExportados));
-
+  localStorage.setItem('fin_exportados_'+userKey, JSON.stringify([...exportados, ...nuevosIds]));
   document.getElementById('export-status').textContent = '✅ '+nuevos.length+' gastos exportados correctamente.';
 }
 
