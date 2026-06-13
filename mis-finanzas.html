@@ -574,11 +574,21 @@ function leerExcel(input){
           recurrentes.push({nombre:nom,monto:mto,estatus:est.trim()});
       }
 
-      // 5. GUARDAR EN FIREBASE
+      // 5. BORRAR GASTOS DE FIREBASE Y GUARDAR CONFIG
+      // Al subir el Excel, los gastos ya están incorporados en el saldoBase.
+      // Se borran todos los gastos de Firebase para evitar duplicados.
       const newCfg={...cfg, saldoBase, ingresos, ingreso:totalIng, techos, recurrentes};
-      if(db) db.ref('finanzas/'+userKey+'/config').set(newCfg);
+      if(db){
+        // Primero borrar gastos (ya están en el Excel)
+        db.ref('finanzas/'+userKey+'/gastos').remove().then(()=>{
+          // Luego guardar nueva config con nuevo saldoBase
+          db.ref('finanzas/'+userKey+'/config').set(newCfg);
+          // También limpiar exportados para reiniciar ciclo
+          localStorage.removeItem('fin_exportados_'+userKey);
+        });
+      }
 
-      document.getElementById('cfg-status').innerHTML=`<div class="cfg-ok">✅ ${file.name}<br>Saldo base: ${fmt(saldoBase)} · ${recurrentes.length} gastos fijos</div>`;
+      document.getElementById('cfg-status').innerHTML=`<div class="cfg-ok">✅ ${file.name}<br>Saldo base: ${fmt(saldoBase)} · ${recurrentes.length} gastos fijos<br>🗑 Gastos anteriores borrados de la app</div>`;
       renderCfg(); actualizarHeader();
     }catch(err){
       document.getElementById('cfg-status').innerHTML='<div style="color:#C62828;font-size:13px;padding:8px 0">Error al leer el Excel.</div>';
